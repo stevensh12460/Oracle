@@ -9,6 +9,9 @@ import threading
 import sys
 import requests
 from pathlib import Path
+# Connection-pooled HTTP sessions (reuse TCP connections via keep-alive)
+_http = requests.Session()       # LAN services (Nikita, Llama, Mechanicus)
+_http_hive = requests.Session()  # The Hive (192.168.158.203)
 
 
 # Thread-local context for tracking
@@ -137,7 +140,7 @@ def _get(service: str, path: str, timeout: int = 30) -> dict | list | None:
     if not base_url:
         return {"error": f"Unknown service: {service}"}
     try:
-        r = requests.get(f"{base_url}{path}", timeout=timeout)
+        r = _http.get(f"{base_url}{path}", timeout=timeout)
         if r.ok:
             return r.json()
         return {"error": f"HTTP {r.status_code}", "detail": r.text[:200]}
@@ -151,7 +154,7 @@ def _post(service: str, path: str, data: dict, timeout: int = 30) -> dict | None
         _load_config()
     base_url = _config.get("services", {}).get(service, {}).get("base_url", "")
     try:
-        r = requests.post(f"{base_url}{path}", json=data, timeout=timeout)
+        r = _http.post(f"{base_url}{path}", json=data, timeout=timeout)
         if r.ok:
             return r.json()
         return {"error": f"HTTP {r.status_code}", "detail": r.text[:200]}
@@ -762,7 +765,7 @@ def half_close_position(position_id: int) -> dict:
 def clear_engine_signal(signal_id: int) -> dict:
     """Deactivate a specific cross-engine signal."""
     try:
-        r = requests.delete(f"{_get_base('nikita')}/api/engine-signals/{signal_id}", timeout=5)
+        r = _http.delete(f"{_get_base('nikita')}/api/engine-signals/{signal_id}", timeout=5)
         return {"ok": True} if r.ok else {"error": r.text}
     except Exception as e:
         return {"error": str(e)}
@@ -1115,10 +1118,10 @@ def pause_engine(engine_name: str, duration_minutes: int = 10) -> dict:
 def resume_engine(engine_name: str) -> dict:
     """Resume a paused engine by clearing its pause signal. Always autonomous."""
     try:
-        sigs = requests.get(f"{_get_base('nikita')}/api/engine-signals?type=ORACLE_ENGINE_PAUSE", timeout=5).json()
+        sigs = _http.get(f"{_get_base('nikita')}/api/engine-signals?type=ORACLE_ENGINE_PAUSE", timeout=5).json()
         for s in sigs:
             if s.get("asset") == engine_name:
-                requests.delete(f"{_get_base('nikita')}/api/engine-signals/{s['id']}", timeout=5)
+                _http.delete(f"{_get_base('nikita')}/api/engine-signals/{s['id']}", timeout=5)
         return {"ok": True, "engine": engine_name, "action": "resumed"}
     except Exception as e:
         return {"error": str(e)}
@@ -1406,7 +1409,7 @@ _HIVE_TIMEOUT = 8
 def read_hive_status() -> dict:
     """Read The Hive service status, agent count, and uptime."""
     try:
-        r = requests.get(f"{_HIVE_BASE}/api/status", timeout=_HIVE_TIMEOUT)
+        r = _http_hive.get(f"{_HIVE_BASE}/api/status", timeout=_HIVE_TIMEOUT)
         return r.json() if r.status_code == 200 else {"error": f"HTTP {r.status_code}"}
     except Exception as e:
         return {"error": str(e), "hive_offline": True}
@@ -1415,7 +1418,7 @@ def read_hive_status() -> dict:
 def read_hive_leaderboard() -> dict:
     """Read The Hive agent leaderboard — all 20 agents ranked by P&L and win rate."""
     try:
-        r = requests.get(f"{_HIVE_BASE}/api/personalities/leaderboard", timeout=_HIVE_TIMEOUT)
+        r = _http_hive.get(f"{_HIVE_BASE}/api/personalities/leaderboard", timeout=_HIVE_TIMEOUT)
         agents = r.json() if r.status_code == 200 else []
         return {"agents": agents[:10], "total_agents": len(agents)}
     except Exception as e:
@@ -1425,7 +1428,7 @@ def read_hive_leaderboard() -> dict:
 def read_hive_agents() -> dict:
     """Read all active Hive agents with balances and open positions."""
     try:
-        r = requests.get(f"{_HIVE_BASE}/api/agents", timeout=_HIVE_TIMEOUT)
+        r = _http_hive.get(f"{_HIVE_BASE}/api/agents", timeout=_HIVE_TIMEOUT)
         return {"agents": r.json()} if r.status_code == 200 else {"error": f"HTTP {r.status_code}"}
     except Exception as e:
         return {"error": str(e)}
@@ -1434,7 +1437,7 @@ def read_hive_agents() -> dict:
 def read_hive_consensus(asset: str = "BTC") -> dict:
     """Read performance-weighted agent consensus for an asset. Returns LONG/SHORT/NEUTRAL."""
     try:
-        r = requests.get(f"{_HIVE_BASE}/api/consensus/{asset.upper()}", timeout=_HIVE_TIMEOUT)
+        r = _http_hive.get(f"{_HIVE_BASE}/api/consensus/{asset.upper()}", timeout=_HIVE_TIMEOUT)
         return r.json() if r.status_code == 200 else {"error": f"HTTP {r.status_code}"}
     except Exception as e:
         return {"error": str(e)}
@@ -1443,7 +1446,7 @@ def read_hive_consensus(asset: str = "BTC") -> dict:
 def read_hive_recent_trades() -> dict:
     """Read recent trade activity across all Hive agents."""
     try:
-        r = requests.get(f"{_HIVE_BASE}/api/personalities/leaderboard", timeout=_HIVE_TIMEOUT)
+        r = _http_hive.get(f"{_HIVE_BASE}/api/personalities/leaderboard", timeout=_HIVE_TIMEOUT)
         if r.status_code != 200:
             return {"error": f"HTTP {r.status_code}"}
         agents = r.json()
@@ -1469,7 +1472,7 @@ def broadcast_hive_signal(asset: str = "BTC", direction: str = "BUY",
     if price and float(price) > 0:
         payload["price"] = float(price)
     try:
-        r = requests.post(f"{_HIVE_BASE}/api/broadcast_signal", json=payload, timeout=_HIVE_TIMEOUT)
+        r = _http_hive.post(f"{_HIVE_BASE}/api/broadcast_signal", json=payload, timeout=_HIVE_TIMEOUT)
         return {"signal_sent": payload, "status": "ok" if r.status_code == 200 else f"HTTP {r.status_code}"}
     except Exception as e:
         return {"error": str(e)}
@@ -1479,7 +1482,7 @@ def read_hive_report() -> dict:
     """Read the latest hourly batch report from The Hive observer.
     Contains leaderboard, trait insights, consensus, and config recommendations."""
     try:
-        r = requests.get(f"{_get_base('nikita')}/api/hive/report", timeout=_HIVE_TIMEOUT)
+        r = _http.get(f"{_get_base('nikita')}/api/hive/report", timeout=_HIVE_TIMEOUT)
         return r.json() if r.status_code == 200 else {"error": f"HTTP {r.status_code}"}
     except Exception as e:
         return {"error": str(e)}
@@ -1488,7 +1491,7 @@ def read_hive_report() -> dict:
 def read_hive_observer_status() -> dict:
     """Read The Hive observer status — is it polling Nikita, how many trades detected."""
     try:
-        r = requests.get(f"{_HIVE_BASE}/api/status", timeout=_HIVE_TIMEOUT)
+        r = _http_hive.get(f"{_HIVE_BASE}/api/status", timeout=_HIVE_TIMEOUT)
         data = r.json() if r.status_code == 200 else {}
         return data.get("observer", data)
     except Exception as e:
@@ -1500,11 +1503,11 @@ def read_hive_elo_leaderboard() -> dict:
     regime-specific ratings, 7-day momentum, and lineage info.
     Use this to understand which agents are genuinely performing vs lucky."""
     try:
-        r = requests.get(f"{_HIVE_BASE}/api/elo/leaderboard", timeout=_HIVE_TIMEOUT)
+        r = _http_hive.get(f"{_HIVE_BASE}/api/elo/leaderboard", timeout=_HIVE_TIMEOUT)
         if r.status_code == 200:
             return {"agents": r.json()}
         # Fallback to Nikita cache
-        r2 = requests.get(f"{_get_base('nikita')}/api/hive/elo", timeout=_HIVE_TIMEOUT)
+        r2 = _http.get(f"{_get_base('nikita')}/api/hive/elo", timeout=_HIVE_TIMEOUT)
         return r2.json() if r2.status_code == 200 else {"error": "No Elo data available"}
     except Exception as e:
         return {"error": str(e)}
@@ -1515,11 +1518,11 @@ def read_hive_regime_specialists(regime: str = "CHOP") -> dict:
     their regime-specific Elo rating — these are the agents to trust when ORACLE
     detects this regime is active."""
     try:
-        r = requests.get(f"{_HIVE_BASE}/api/elo/regime/{regime.upper()}", timeout=_HIVE_TIMEOUT)
+        r = _http_hive.get(f"{_HIVE_BASE}/api/elo/regime/{regime.upper()}", timeout=_HIVE_TIMEOUT)
         if r.status_code == 200:
             return r.json()
         # Fallback to Nikita cache
-        r2 = requests.get(f"{_get_base('nikita')}/api/hive/elo/regime/{regime.upper()}", timeout=_HIVE_TIMEOUT)
+        r2 = _http.get(f"{_get_base('nikita')}/api/hive/elo/regime/{regime.upper()}", timeout=_HIVE_TIMEOUT)
         return r2.json() if r2.status_code == 200 else {"error": f"No data for regime {regime}"}
     except Exception as e:
         return {"error": str(e)}
@@ -1531,7 +1534,8 @@ def read_hive_lineage_performance(lineage: str = "") -> dict:
     Informs breeding decisions during evolution."""
     try:
         url = f"{_HIVE_BASE}/api/elo/lineage/{lineage}" if lineage else f"{_get_base('nikita')}/api/hive/elo"
-        r = requests.get(url, timeout=_HIVE_TIMEOUT)
+        session = _http_hive if lineage else _http
+        r = session.get(url, timeout=_HIVE_TIMEOUT)
         if r.status_code == 200:
             data = r.json()
             return data.get("elo_lineage_report", data) if isinstance(data, dict) else data
