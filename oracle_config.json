@@ -1,0 +1,71 @@
+{
+  "oracle": {
+    "port": 9000,
+    "host": "0.0.0.0",
+    "db_path": "D:/ORACLE/oracle.db",
+    "session_timeout_minutes": 30,
+    "watch_loop_interval_seconds": 90
+  },
+
+  "ollama": {
+    "oracle_primary": {
+      "host": "192.168.158.237",
+      "port": 11434,
+      "model": "qwen2.5-coder:14b",
+      "active": true,
+      "note": "Local RTX 4070 12GB — ORACLE primary"
+    },
+    "oracle_secondary": {
+      "host": "192.168.158.203",
+      "port": 5600,
+      "model": "qwen2.5-coder:7b",
+      "active": true,
+      "note": "Corey Queue — RTX 5060 8GB, 7b model"
+    }
+  },
+
+  "services": {
+    "nikita": {
+      "host": "192.168.158.237",
+      "port": 5000,
+      "base_url": "http://192.168.158.237:5000"
+    },
+    "llama": {
+      "host": "192.168.158.237",
+      "port": 8989,
+      "base_url": "http://192.168.158.237:8989"
+    },
+    "mechanicus": {
+      "host": "192.168.158.237",
+      "port": 7777,
+      "base_url": "http://192.168.158.237:7777"
+    }
+  },
+
+  "llm_settings": {
+    "tool_call_temperature": 0.3,
+    "conversation_temperature": 0.6,
+    "ruleset_temperature": 0.2,
+    "max_tokens_tool_call": 2000,
+    "max_tokens_conversation": 3000,
+    "max_tokens_ruleset": 4000,
+    "timeout_seconds": 120,
+    "max_retries": 2
+  },
+
+  "ruleset": {
+    "default_ttl_hours": 24,
+    "revalidation_window_hours": 2,
+    "performance_drop_threshold": 0.15,
+    "hard_floor_win_rate": 0.35,
+    "hard_floor_min_trades": 30,
+    "auto_approve_confidence_threshold": 0.80,
+    "min_sample_size_for_trust": 15
+  },
+
+  "conversation": {
+    "max_full_turns_in_context": 10,
+    "max_tool_result_chars": 2000,
+    "max_array_items_in_prompt": 20
+  }
+}

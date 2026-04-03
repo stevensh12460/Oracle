@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ORACLE // Autonomous Oversight</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+    --bg: #0a0e17;
+    --card-bg: #111827;
+    --border: #1e2d45;
+    --accent: #06b6d4;
+    --text: #e0e6f0;
+    --text-dim: #6b7b96;
+    --green: #22c55e;
+    --red: #ef4444;
+    --yellow: #eab308;
+    --orange: #f97316;
+    --purple: #a855f7;
+    --font: 'Consolas', 'Courier New', monospace;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 13px;
+    line-height: 1.5;
+    overflow: hidden;
+    height: 100vh;
+}
+
+/* ── Header ── */
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border);
+    height: 44px;
+}
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+.header-title {
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--accent);
+    letter-spacing: 2px;
+}
+.header-subtitle {
+    color: var(--text-dim);
+    font-size: 11px;
+}
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+.status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    background: rgba(6, 182, 212, 0.1);
+    border: 1px solid var(--border);
+}
+.status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+}
+.status-dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-dot.offline { background: var(--red); box-shadow: 0 0 6px var(--red); }
+.badge {
+    background: var(--red);
+    color: #fff;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-weight: bold;
+    min-width: 18px;
+    text-align: center;
+}
+.badge.zero { background: var(--border); color: var(--text-dim); }
+
+/* ── Tabs ── */
+.tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--card-bg);
+}
+.tab-btn {
+    padding: 8px 20px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-family: var(--font);
+    font-size: 12px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+.tab-btn:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── Tab Panels ── */
+.tab-panels {
+    height: calc(100vh - 44px - 37px);
+    overflow: hidden;
+}
+.tab-panel {
+    display: none;
+    height: 100%;
+    overflow-y: auto;
+    padding: 16px;
+}
+.tab-panel.active { display: flex; flex-direction: column; }
+
+/* ── Cards ── */
+.card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+    margin-bottom: 12px;
+}
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.card-title {
+    font-size: 12px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* ── Chat (Tab 1) ── */
+.chat-layout {
+    display: flex;
+    gap: 12px;
+    flex: 1;
+    min-height: 0;
+}
+.chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+.chat-sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    overflow-y: auto;
+}
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px 6px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.chat-input-row {
+    display: flex;
+    gap: 8px;
+    padding: 10px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+}
+.chat-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 12px;
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 13px;
+    outline: none;
+}
+.chat-input:focus { border-color: var(--accent); }
+.chat-send {
+    padding: 8px 16px;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: 4px;
+    font-family: var(--font);
+    font-weight: bold;
+    cursor: pointer;
+}
+.chat-send:hover { opacity: 0.85; }
+.msg {
+    padding: 8px 12px;
+    border-radius: 6px;
+    max-width: 85%;
+    word-wrap: break-word;
+}
+.msg.user {
+    background: rgba(6, 182, 212, 0.15);
+    border: 1px solid rgba(6, 182, 212, 0.3);
+    align-self: flex-end;
+}
+.msg.oracle {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    align-self: flex-start;
+}
+.msg-sender {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.tool-call {
+    font-size: 11px;
+    color: var(--text-dim);
+    padding: 4px 8px;
+    margin-top: 4px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 3px;
+    cursor: pointer;
+    user-select: none;
+}
+.tool-call:hover { color: var(--text); }
+.sidebar-section {
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+}
+.sidebar-section:last-child { border-bottom: none; }
+.sidebar-section h4 {
+    font-size: 10px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+}
+.sidebar-stat {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    font-size: 12px;
+}
+.sidebar-stat .label { color: var(--text-dim); }
+.sidebar-stat .value { color: var(--text); font-weight: bold; }
+
+/* ── Rulesets Grid (Tab 2) ── */
+.rulesets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 12px;
+}
+.ruleset-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+}
+.ruleset-card .engine-name {
+    font-size: 15px;
+    font-weight: bold;
+    color: var(--accent);
+}
+.ruleset-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    font-size: 11px;
+    margin-bottom: 10px;
+}
+.ruleset-meta .meta-label { color: var(--text-dim); }
+.ruleset-meta .meta-value { color: var(--text); text-align: right; }
+.ttl-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 8px 0;
+}
+.ttl-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 1s linear;
+}
+.status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+.status-badge.active { background: rgba(34, 197, 94, 0.2); color: var(--green); }
+.status-badge.pending, .status-badge.pending_approval { background: rgba(234, 179, 8, 0.2); color: var(--yellow); }
+.status-badge.archived { background: rgba(107, 123, 150, 0.2); color: var(--text-dim); }
+.status-badge.expired { background: rgba(239, 68, 68, 0.2); color: var(--red); }
+.status-badge.rejected { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+
+/* ── Approvals (Tab 3) ── */
+.approval-item {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+    margin-bottom: 10px;
+}
+.approval-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.approval-engine {
+    font-weight: bold;
+    color: var(--accent);
+}
+.approval-buttons {
+    display: flex;
+    gap: 8px;
+}
+.btn {
+    padding: 5px 14px;
+    border: none;
+    border-radius: 4px;
+    font-family: var(--font);
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: opacity 0.15s;
+}
+.btn-approve { background: var(--green); color: #000; }
+.btn-reject { background: var(--red); color: #fff; }
+.btn:hover { opacity: 0.85; }
+.approval-details {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
+}
+
+/* ── Observations Timeline (Tab 4) ── */
+.timeline {
+    position: relative;
+    padding-left: 24px;
+}
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border);
+}
+.timeline-item {
+    position: relative;
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -21px;
+    top: 14px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--bg);
+}
+.timeline-item.critical::before { border-color: var(--red); background: var(--red); }
+.timeline-item.warning::before { border-color: var(--yellow); background: var(--yellow); }
+.timeline-item.info::before { border-color: var(--accent); background: var(--accent); }
+.timeline-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+.severity-badge {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    font-weight: bold;
+}
+.severity-badge.critical { background: rgba(239,68,68,0.2); color: var(--red); }
+.severity-badge.warning { background: rgba(234,179,8,0.2); color: var(--yellow); }
+.severity-badge.info { background: rgba(6,182,212,0.2); color: var(--accent); }
+.timeline-time {
+    font-size: 10px;
+    color: var(--text-dim);
+}
+.timeline-message {
+    font-size: 12px;
+    color: var(--text);
+}
+.timeline-engine {
+    font-size: 11px;
+    color: var(--accent);
+    margin-left: 8px;
+}
+
+/* ── Archive Table (Tab 5) ── */
+.archive-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.archive-table th {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 2px solid var(--border);
+    color: var(--text-dim);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+}
+.archive-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(30, 45, 69, 0.4);
+    color: var(--text);
+}
+.archive-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
+.pnl-pos { color: var(--green); }
+.pnl-neg { color: var(--red); }
+
+/* ── Empty State ── */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-dim);
+}
+.empty-state .icon { font-size: 28px; margin-bottom: 10px; opacity: 0.3; font-family: var(--font); }
+.empty-state p { font-size: 13px; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #2a3a55; }
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="header">
+    <div class="header-left">
+        <span class="header-title">ORACLE</span>
+        <span class="header-subtitle">Autonomous Oversight System</span>
+    </div>
+    <div class="header-right">
+        <div class="status-pill">
+            <span class="status-dot" id="oracle-status-dot"></span>
+            <span id="oracle-status-text">CHECKING...</span>
+        </div>
+        <div class="status-pill">
+            <span class="status-dot" id="llm-status-dot"></span>
+            <span id="llm-status-text">LLM</span>
+        </div>
+        <div class="status-pill">
+            RULESETS: <span id="header-rulesets-count" style="margin-left:4px;color:var(--accent);font-weight:bold">0</span>
+        </div>
+        <div class="status-pill">
+            PENDING: <span class="badge zero" id="header-pending-badge">0</span>
+        </div>
+    </div>
+</div>
+
+<!-- ── Tab Bar ── -->
+<div class="tab-bar">
+    <button class="tab-btn active" data-tab="conversation">Conversation</button>
+    <button class="tab-btn" data-tab="rulesets">Active Rulesets</button>
+    <button class="tab-btn" data-tab="approvals">Pending Approvals</button>
+    <button class="tab-btn" data-tab="observations">Observations</button>
+    <button class="tab-btn" data-tab="archive">Ruleset Archive</button>
+</div>
+
+<!-- ── Tab Panels ── -->
+<div class="tab-panels">
+
+    <!-- Tab 1: Conversation -->
+    <div class="tab-panel active" id="tab-conversation">
+        <div class="chat-layout">
+            <div class="chat-main">
+                <div class="chat-messages" id="chat-messages">
+                    <div class="msg oracle">
+                        <div class="msg-sender">ORACLE</div>
+                        <div>Online and monitoring. Ask me about active rulesets, engine performance, market conditions, or request a new ruleset generation.</div>
+                    </div>
+                </div>
+                <div class="chat-input-row">
+                    <input class="chat-input" id="chat-input" type="text" placeholder="Talk to ORACLE..." autocomplete="off">
+                    <button class="chat-send" id="chat-send">SEND</button>
+                </div>
+            </div>
+            <div class="chat-sidebar">
+                <div class="card">
+                    <div class="sidebar-section">
+                        <h4>System State</h4>
+                        <div class="sidebar-stat"><span class="label">Status</span><span class="value" id="sb-status">--</span></div>
+                        <div class="sidebar-stat"><span class="label">Active Rulesets</span><span class="value" id="sb-rulesets">--</span></div>
+                        <div class="sidebar-stat"><span class="label">Pending</span><span class="value" id="sb-pending">--</span></div>
+                        <div class="sidebar-stat"><span class="label">Observations</span><span class="value" id="sb-observations">--</span></div>
+                        <div class="sidebar-stat"><span class="label">Uptime</span><span class="value" id="sb-uptime">--</span></div>
+                    </div>
+                    <div class="sidebar-section">
+                        <h4>LLM</h4>
+                        <div class="sidebar-stat"><span class="label">Status</span><span class="value" id="sb-llm">--</span></div>
+                    </div>
+                    <div class="sidebar-section">
+                        <h4>Engines</h4>
+                        <div id="sb-engines" style="font-size:12px;color:var(--text-dim)">--</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2: Active Rulesets -->
+    <div class="tab-panel" id="tab-rulesets">
+        <div class="rulesets-grid" id="rulesets-grid">
+            <div class="empty-state"><div class="icon">{ }</div><p>No active rulesets</p></div>
+        </div>
+    </div>
+
+    <!-- Tab 3: Pending Approvals -->
+    <div class="tab-panel" id="tab-approvals">
+        <div id="approvals-list">
+            <div class="empty-state"><div class="icon">...</div><p>No pending approvals</p></div>
+        </div>
+    </div>
+
+    <!-- Tab 4: Observations -->
+    <div class="tab-panel" id="tab-observations">
+        <div class="timeline" id="observations-timeline">
+            <div class="empty-state"><div class="icon">---</div><p>No observations yet</p></div>
+        </div>
+    </div>
+
+    <!-- Tab 5: Archive -->
+    <div class="tab-panel" id="tab-archive">
+        <div id="archive-container">
+            <div class="empty-state"><div class="icon">[x]</div><p>No archived rulesets</p></div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    // ── State ──
+    let currentTab = 'conversation';
+    let pollTimer = null;
+
+    // ── Utilities ──
+    function esc(s) {
+        if (!s) return '';
+        const d = document.createElement('div');
+        d.textContent = String(s);
+        return d.innerHTML;
+    }
+
+    function formatTime(ts) {
+        if (!ts) return '--';
+        const d = new Date(ts * 1000);
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    function formatDate(ts) {
+        if (!ts) return '--';
+        const d = new Date(ts * 1000);
+        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function formatDuration(seconds) {
+        if (!seconds || seconds <= 0) return 'EXPIRED';
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        if (h > 0) return h + 'h ' + m + 'm';
+        return m + 'm';
+    }
+
+    function formatUptime(seconds) {
+        if (!seconds) return '--';
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        if (h > 0) return h + 'h ' + m + 'm';
+        if (m > 0) return m + 'm ' + s + 's';
+        return s + 's';
+    }
+
+    // ── API Helper ──
+    async function api(path, opts) {
+        try {
+            const resp = await fetch(path, opts);
+            if (!resp.ok) return null;
+            return await resp.json();
+        } catch (e) {
+            console.error('API error:', path, e);
+            return null;
+        }
+    }
+
+    // ── Tab Switching ──
+    document.querySelectorAll('.tab-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+            document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+            btn.classList.add('active');
+            var tabId = btn.getAttribute('data-tab');
+            document.getElementById('tab-' + tabId).classList.add('active');
+            currentTab = tabId;
+            refreshTab(tabId);
+        });
+    });
+
+    // ══════════════════════════════════════════════
+    // ── Status Refresh ──
+    // ══════════════════════════════════════════════
+    async function refreshStatus() {
+        var data = await api('/api/status');
+        if (!data) {
+            document.getElementById('oracle-status-dot').className = 'status-dot offline';
+            document.getElementById('oracle-status-text').textContent = 'OFFLINE';
+            return;
+        }
+
+        // Header pills
+        var oracleDot = document.getElementById('oracle-status-dot');
+        var oracleText = document.getElementById('oracle-status-text');
+        var llmDot = document.getElementById('llm-status-dot');
+        var llmText = document.getElementById('llm-status-text');
+
+        oracleDot.className = 'status-dot ' + (data.oracle_status === 'online' ? 'online' : 'offline');
+        oracleText.textContent = (data.oracle_status || 'unknown').toUpperCase();
+
+        llmDot.className = 'status-dot ' + (data.llm_status === 'connected' ? 'online' : 'offline');
+        llmText.textContent = data.llm_status === 'connected' ? 'LLM OK' : 'LLM OFF';
+
+        document.getElementById('header-rulesets-count').textContent = data.active_rulesets || 0;
+
+        var pc = data.pending_approvals || 0;
+        var badge = document.getElementById('header-pending-badge');
+        badge.textContent = pc;
+        badge.className = pc > 0 ? 'badge' : 'badge zero';
+
+        // Sidebar
+        document.getElementById('sb-status').textContent = (data.oracle_status || '--').toUpperCase();
+        document.getElementById('sb-status').style.color = data.oracle_status === 'online' ? 'var(--green)' : 'var(--red)';
+        document.getElementById('sb-rulesets').textContent = data.active_rulesets || 0;
+        document.getElementById('sb-pending').textContent = data.pending_approvals || 0;
+        document.getElementById('sb-pending').style.color = pc > 0 ? 'var(--yellow)' : 'var(--text)';
+        document.getElementById('sb-observations').textContent = data.recent_observations || 0;
+        document.getElementById('sb-uptime').textContent = formatUptime(data.uptime_s);
+        document.getElementById('sb-llm').textContent = (data.llm_status || '--').toUpperCase();
+        document.getElementById('sb-llm').style.color = data.llm_status === 'connected' ? 'var(--green)' : 'var(--red)';
+    }
+
+    // ══════════════════════════════════════════════
+    // ── Chat (Tab 1) ──
+    // ══════════════════════════════════════════════
+    var chatMessages = document.getElementById('chat-messages');
+    var chatInput = document.getElementById('chat-input');
+    var chatSend = document.getElementById('chat-send');
+
+    function addChatMessage(role, text, toolCalls) {
+        var div = document.createElement('div');
+        div.className = 'msg ' + role;
+
+        var html = '<div class="msg-sender">' + esc(role) + '</div>';
+        html += '<div style="white-space:pre-wrap">' + esc(text) + '</div>';
+
+        if (toolCalls && toolCalls.length) {
+            for (var i = 0; i < toolCalls.length; i++) {
+                var tc = toolCalls[i];
+                html += '<div class="tool-call">[Called: ' + esc(tc.name) + '() &mdash; ' + (tc.duration_ms || '?') + 'ms]</div>';
+            }
+        }
+
+        div.innerHTML = html;
+        chatMessages.appendChild(div);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    async function sendChat() {
+        var msg = chatInput.value.trim();
+        if (!msg) return;
+        chatInput.value = '';
+        addChatMessage('user', msg);
+
+        chatSend.disabled = true;
+        chatSend.textContent = '...';
+
+        var data = await api('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: msg })
+        });
+
+        chatSend.disabled = false;
+        chatSend.textContent = 'SEND';
+
+        if (data) {
+            addChatMessage('oracle', data.response || 'No response.', data.tool_calls);
+        } else {
+            addChatMessage('oracle', 'Error: could not reach ORACLE backend.');
+        }
+    }
+
+    chatSend.addEventListener('click', sendChat);
+    chatInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) sendChat();
+    });
+
+    // ══════════════════════════════════════════════
+    // ── Active Rulesets (Tab 2) ──
+    // ══════════════════════════════════════════════
+    async function refreshRulesets() {
+        var data = await api('/api/rulesets');
+        var grid = document.getElementById('rulesets-grid');
+
+        if (!data || !data.length) {
+            grid.innerHTML = '<div class="empty-state"><div class="icon">{ }</div><p>No active rulesets</p></div>';
+            return;
+        }
+
+        var html = '';
+        for (var i = 0; i < data.length; i++) {
+            var r = data[i];
+            var ttlMax = (r.ttl_hours || 24) * 3600;
+            var ttlPct = ttlMax > 0 ? Math.max(0, Math.min(100, (r.ttl_remaining_s / ttlMax) * 100)) : 0;
+            var ttlColor = ttlPct > 30 ? 'var(--green)' : ttlPct > 10 ? 'var(--yellow)' : 'var(--red)';
+            var wrColor = r.win_rate >= 0.6 ? 'var(--green)' : r.win_rate >= 0.4 ? 'var(--yellow)' : 'var(--red)';
+            var pnlColor = r.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+            var pnlSign = r.pnl >= 0 ? '+' : '';
+            var reason = r.reasoning || '';
+            if (reason.length > 160) reason = reason.substring(0, 160) + '...';
+
+            html += '<div class="ruleset-card">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
+                    '<span class="engine-name">' + esc(r.engine) + '</span>' +
+                    '<span class="status-badge ' + esc(r.status) + '">' + esc(r.status) + '</span>' +
+                '</div>' +
+                '<div style="font-size:10px;color:var(--text-dim);margin-bottom:8px">' + esc(r.ruleset_id) + '</div>' +
+                '<div class="ttl-bar"><div class="ttl-bar-fill" style="width:' + ttlPct + '%;background:' + ttlColor + '"></div></div>' +
+                '<div style="font-size:10px;color:var(--text-dim);margin-bottom:10px">TTL: ' + formatDuration(r.ttl_remaining_s) + '</div>' +
+                '<div class="ruleset-meta">' +
+                    '<span class="meta-label">Win Rate</span><span class="meta-value" style="color:' + wrColor + '">' + (r.win_rate * 100).toFixed(1) + '%</span>' +
+                    '<span class="meta-label">Trades</span><span class="meta-value">' + r.trades + '</span>' +
+                    '<span class="meta-label">W / L</span><span class="meta-value" style="color:var(--green)">' + r.wins + '</span>' +
+                    '<span class="meta-label"></span><span class="meta-value" style="color:var(--red)">' + r.losses + '</span>' +
+                    '<span class="meta-label">P&amp;L</span><span class="meta-value" style="color:' + pnlColor + '">' + pnlSign + '$' + r.pnl.toFixed(2) + '</span>' +
+                    '<span class="meta-label">Activated</span><span class="meta-value">' + formatTime(r.activated_at) + '</span>' +
+                '</div>' +
+                '<div style="font-size:11px;color:var(--text-dim);border-top:1px solid var(--border);padding-top:8px;margin-top:4px">' + esc(reason) + '</div>';
+
+            // Show recommendations if available
+            var recs = r.recommendations || [];
+            if (recs.length > 0) {
+                html += '<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">';
+                for (var j = 0; j < Math.min(recs.length, 5); j++) {
+                    var rec = recs[j];
+                    var pColor = rec.priority === 'high' ? 'var(--red)' : rec.priority === 'medium' ? 'var(--yellow)' : 'var(--text-dim)';
+                    html += '<div style="font-size:10px;margin-bottom:3px"><span style="color:' + pColor + ';font-weight:bold">[' + (rec.priority || '?').toUpperCase() + ']</span> ' + esc(rec.rule || rec.reasoning || '') + '</div>';
+                }
+                html += '</div>';
+            }
+
+            // Show if LLM generated
+            if (r.llm_generated) {
+                html += '<div style="font-size:9px;color:var(--accent);margin-top:4px">&#x1F9E0; LLM-generated rules</div>';
+            }
+
+            html += '</div>';
+        }
+
+        grid.innerHTML = html;
+
+        // Also update sidebar engines
+        var engEl = document.getElementById('sb-engines');
+        engEl.innerHTML = data.map(function(r) {
+            return '<div style="margin-bottom:2px"><span style="color:var(--accent)">' + esc(r.engine) +
+                '</span> <span style="color:var(--text-dim)">(' + esc(r.status) + ')</span></div>';
+        }).join('');
+    }
+
+    // ══════════════════════════════════════════════
+    // ── Pending Approvals (Tab 3) ──
+    // ══════════════════════════════════════════════
+    async function refreshApprovals() {
+        var data = await api('/api/approvals');
+        var list = document.getElementById('approvals-list');
+
+        if (!data || !data.length) {
+            list.innerHTML = '<div class="empty-state"><div class="icon">...</div><p>No pending approvals</p></div>';
+            return;
+        }
+
+        var html = '';
+        for (var i = 0; i < data.length; i++) {
+            var a = data[i];
+            var v = a.verdict || {};
+            var conf = v.confidence != null ? (v.confidence * 100).toFixed(0) + '%' : '--';
+            var risk = v.risk_level || '--';
+            var riskColor = risk === 'low' ? 'var(--green)' : risk === 'medium' ? 'var(--yellow)' : risk === 'high' ? 'var(--orange)' : 'var(--red)';
+            var id = a.ruleset_id || a.id || '';
+
+            html += '<div class="approval-item">' +
+                '<div class="approval-header">' +
+                    '<div>' +
+                        '<span class="approval-engine">' + esc(a.engine || '--') + '</span>' +
+                        '<span style="color:var(--text-dim);font-size:11px;margin-left:8px">' + esc(id) + '</span>' +
+                        '<span style="color:var(--text-dim);font-size:10px;margin-left:12px">' + formatDate(a.timestamp || a.created_at) + '</span>' +
+                    '</div>' +
+                    '<div class="approval-buttons">' +
+                        '<button class="btn btn-approve" onclick="window._approveItem(\'' + esc(id) + '\')">APPROVE</button>' +
+                        '<button class="btn btn-reject" onclick="window._rejectItem(\'' + esc(id) + '\')">REJECT</button>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="approval-details">' +
+                    '<div>Confidence: <strong>' + conf + '</strong> &nbsp;|&nbsp; Risk: <strong style="color:' + riskColor + '">' + esc(risk) + '</strong>' +
+                    (v.decision ? ' &nbsp;|&nbsp; LLM says: <strong>' + esc(v.decision) + '</strong>' : '') + '</div>' +
+                    '<div style="margin-top:6px">' + esc(v.reasoning || 'No reasoning available') + '</div>' +
+                '</div>' +
+            '</div>';
+        }
+
+        list.innerHTML = html;
+    }
+
+    window._approveItem = async function(id) {
+        await api('/api/approvals/' + encodeURIComponent(id) + '/decide', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ decision: 'approve' })
+        });
+        refreshApprovals();
+        refreshStatus();
+    };
+
+    window._rejectItem = async function(id) {
+        await api('/api/approvals/' + encodeURIComponent(id) + '/decide', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ decision: 'reject' })
+        });
+        refreshApprovals();
+        refreshStatus();
+    };
+
+    // ══════════════════════════════════════════════
+    // ── Observations Timeline (Tab 4) ──
+    // ══════════════════════════════════════════════
+    async function refreshObservations() {
+        var data = await api('/api/observations?limit=50');
+        var timeline = document.getElementById('observations-timeline');
+
+        if (!data || !data.length) {
+            timeline.innerHTML = '<div class="empty-state"><div class="icon">---</div><p>No observations yet</p></div>';
+            return;
+        }
+
+        var html = '';
+        for (var i = 0; i < data.length; i++) {
+            var o = data[i];
+            var sev = o.severity || 'info';
+
+            var obsText = o.action_taken || o.observation_type || '';
+            var obsData = '';
+            try { obsData = typeof o.data === 'string' ? o.data : JSON.stringify(o.data); } catch(e) {}
+            var obsTime = o.timestamp || '';
+
+            html += '<div class="timeline-item ' + esc(sev) + '">' +
+                '<div class="timeline-header">' +
+                    '<div>' +
+                        '<span class="severity-badge ' + esc(sev) + '">' + esc(sev.toUpperCase()) + '</span>' +
+                        '<span class="timeline-engine">' + esc(o.engine || 'system') + '</span>' +
+                        '<span style="color:var(--text-dim);font-size:10px;margin-left:8px">' + esc(o.observation_type || '') + '</span>' +
+                    '</div>' +
+                    '<span class="timeline-time">' + esc(obsTime) + '</span>' +
+                '</div>' +
+                '<div class="timeline-message">' + esc(obsText) + '</div>' +
+                (obsData ? '<div style="font-size:9px;color:var(--text-dim);margin-top:4px">' + esc(obsData) + '</div>' : '') +
+            '</div>';
+        }
+
+        timeline.innerHTML = html;
+    }
+
+    // ══════════════════════════════════════════════
+    // ── Ruleset Archive (Tab 5) ──
+    // ══════════════════════════════════════════════
+    async function refreshArchive() {
+        var data = await api('/api/archive');
+        var container = document.getElementById('archive-container');
+
+        if (!data || !data.length) {
+            container.innerHTML = '<div class="empty-state"><div class="icon">[x]</div><p>No archived rulesets</p></div>';
+            return;
+        }
+
+        var html = '<table class="archive-table">' +
+            '<thead><tr>' +
+                '<th>Ruleset ID</th>' +
+                '<th>Engine</th>' +
+                '<th>Status</th>' +
+                '<th>Created</th>' +
+                '<th>Trades</th>' +
+                '<th>Win Rate</th>' +
+                '<th>P&amp;L</th>' +
+            '</tr></thead><tbody>';
+
+        for (var i = 0; i < data.length; i++) {
+            var r = data[i];
+            var pnlClass = r.pnl >= 0 ? 'pnl-pos' : 'pnl-neg';
+            var pnlSign = r.pnl >= 0 ? '+' : '';
+            var wrColor = r.win_rate >= 0.6 ? 'var(--green)' : r.win_rate >= 0.4 ? 'var(--yellow)' : 'var(--red)';
+
+            html += '<tr>' +
+                '<td style="color:var(--accent)">' + esc(r.ruleset_id) + '</td>' +
+                '<td>' + esc(r.engine) + '</td>' +
+                '<td><span class="status-badge ' + esc(r.status) + '">' + esc(r.status) + '</span></td>' +
+                '<td>' + formatDate(r.created_at) + '</td>' +
+                '<td>' + r.trades + '</td>' +
+                '<td style="color:' + wrColor + '">' + (r.win_rate * 100).toFixed(1) + '%</td>' +
+                '<td class="' + pnlClass + '">' + pnlSign + '$' + r.pnl.toFixed(2) + '</td>' +
+            '</tr>';
+        }
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    // ══════════════════════════════════════════════
+    // ── Tab Refresh Router ──
+    // ══════════════════════════════════════════════
+    function refreshTab(tab) {
+        switch (tab) {
+            case 'conversation': break; // Chat is always live
+            case 'rulesets': refreshRulesets(); break;
+            case 'approvals': refreshApprovals(); break;
+            case 'observations': refreshObservations(); break;
+            case 'archive': refreshArchive(); break;
+        }
+    }
+
+    // ══════════════════════════════════════════════
+    // ── Polling Loop ──
+    // ══════════════════════════════════════════════
+    async function pollAll() {
+        await refreshStatus();
+        refreshTab(currentTab);
+        // Also keep sidebar engines updated
+        if (currentTab !== 'rulesets') {
+            var data = await api('/api/rulesets');
+            if (data && data.length) {
+                document.getElementById('sb-engines').innerHTML = data.map(function(r) {
+                    return '<div style="margin-bottom:2px"><span style="color:var(--accent)">' + esc(r.engine) +
+                        '</span> <span style="color:var(--text-dim)">(' + esc(r.status) + ')</span></div>';
+                }).join('');
+            } else {
+                document.getElementById('sb-engines').textContent = 'No engines active';
+            }
+        }
+    }
+
+    // Initial load
+    pollAll();
+    // Poll every 10 seconds
+    pollTimer = setInterval(pollAll, 10000);
+
+})();
+</script>
+</body>
+</html>

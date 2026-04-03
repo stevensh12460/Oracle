@@ -1,0 +1,85 @@
+{
+  "mode": "advisory",
+  "note": "ORACLE operates in advisory mode. Config changes are logged as recommendations, not applied. Only safety rails (TRADE_BLOCK) are enforced. The Hive agents make all trading decisions.",
+  "hypothesis": {
+    "min_alignment_total": {
+      "min": 1.5,
+      "max": 2.8,
+      "default": 2.0
+    },
+    "min_bars_green": {
+      "min": 4,
+      "max": 6,
+      "default": 5
+    }
+  },
+  "scalper": {
+    "min_5m_change": {
+      "min": 1.0,
+      "max": 4.0,
+      "default": 2.0
+    },
+    "max_concurrent_scalps": {
+      "min": 1,
+      "max": 5,
+      "default": 2
+    }
+  },
+  "swing": {
+    "min_confidence": {
+      "allowed": [
+        "HIGH",
+        "VERY_HIGH"
+      ],
+      "default": "HIGH"
+    },
+    "re_eval_interval_minutes": {
+      "min": 15,
+      "max": 60,
+      "default": 30
+    },
+    "max_hold_hours": {
+      "min": 12,
+      "max": 24,
+      "default": 24
+    },
+    "sl_tighten_factor": {
+      "min": 0.3,
+      "max": 0.7,
+      "default": 0.5
+    }
+  },
+  "engine_control": {
+    "pause_duration_minutes": {
+      "min": 1,
+      "max": 30,
+      "default": 10
+    },
+    "signal_ttl_minutes": {
+      "min": 5,
+      "max": 60,
+      "default": 30
+    },
+    "safe_signal_types": [
+      "CAUTION",
+      "ORACLE_TRADE_BLOCK",
+      "ORACLE_SCALPER_COLD"
+    ]
+  },
+  "enrichment": {
+    "safe_cache_modes": [
+      "ORACLE_BRIEFING"
+    ]
+  },
+  "broadcast_hive_signal": {
+    "allowed_directions": [
+      "BUY",
+      "SELL"
+    ],
+    "allowed_confidences": [
+      "high",
+      "very high"
+    ],
+    "description": "Broadcast signal to Hive paper-trading agents"
+  }
+}
