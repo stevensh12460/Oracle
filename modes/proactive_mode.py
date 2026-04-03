@@ -124,7 +124,13 @@ def check_for_issues() -> list:
     # Store all observations
     for obs in observations:
         try:
-            db.add_observation(obs)
+            db.add_observation(
+                obs_type=obs.get("type", "UNKNOWN"),
+                data=obs.get("data", {}),
+                engine=obs.get("engine"),
+                severity=obs.get("severity", "info"),
+                action_taken=obs.get("action_taken"),
+            )
         except Exception:
             pass
 
