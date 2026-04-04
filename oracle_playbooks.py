@@ -14,25 +14,21 @@ import requests
 import oracle_db as db
 from oracle_memory import get_trend, get_all_trends, record_intervention, get_intervention_hit_rate
 
-# ── Discord webhook (shared with Nikita) ─────────────────────────────────────
+# ── Herald delivery (replaces direct Discord webhook POSTs) ──────────────────
 
-def _get_discord_webhook():
-    try:
-        import os
-        keys_path = os.path.join(os.path.dirname(__file__), "..", "Paper trader", "api_keys.json")
-        with open(keys_path) as f:
-            keys = json.load(f)
-        return keys.get("discord_summary_webhook") or keys.get("discord_webhook", "")
-    except Exception:
-        return ""
+_HERALD_URL = "http://localhost:5700/send"
+_herald_session = requests.Session()
 
 
 def _send_discord(message: str):
-    webhook = _get_discord_webhook()
-    if not webhook:
-        return
+    """Send an alert via Herald (alerts channel, oracle_alert type)."""
     try:
-        requests.post(webhook, json={"content": message[:1950]}, timeout=5)
+        _herald_session.post(_HERALD_URL, json={
+            "channel": "alerts",
+            "type": "oracle_alert",
+            "format": "raw",
+            "data": {"text": message},
+        }, timeout=5)
     except Exception:
         pass
 
