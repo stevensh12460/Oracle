@@ -13,6 +13,8 @@ import json
 import requests
 from collections import defaultdict
 
+_session = requests.Session()
+
 import oracle_db as db
 
 # ── Metrics we track ─────────────────────────────────────────────────────────
@@ -113,7 +115,7 @@ def collect_snapshot():
 
     # Scalper win rate
     try:
-        r = requests.get(f"{_nikita()}/api/scalper/stats", timeout=3)
+        r = _session.get(f"{_nikita()}/api/scalper/stats", timeout=3)
         if r.ok:
             d = r.json()
             total = d.get("total", 0)
@@ -126,7 +128,7 @@ def collect_snapshot():
 
     # Hypothesis win rate (from Mechanicus)
     try:
-        r = requests.get(f"{_mechanicus()}/api/executor/stats", timeout=3)
+        r = _session.get(f"{_mechanicus()}/api/executor/stats", timeout=3)
         if r.ok:
             d = r.json()
             wr = d.get("win_rate", 0)
@@ -137,7 +139,7 @@ def collect_snapshot():
 
     # Hive metrics
     try:
-        r = requests.get(f"{_nikita()}/api/hive/report", timeout=3)
+        r = _session.get(f"{_nikita()}/api/hive/report", timeout=3)
         if r.ok:
             d = r.json()
             if not d.get("error"):
@@ -154,7 +156,7 @@ def collect_snapshot():
 
     # Enrichment freshness
     try:
-        r = requests.get(f"{_llama()}/cache/enrichment", timeout=3)
+        r = _session.get(f"{_llama()}/cache/enrichment", timeout=3)
         if r.ok:
             d = r.json()
             total = len(d)
@@ -166,7 +168,7 @@ def collect_snapshot():
 
     # Portfolio drawdown
     try:
-        r = requests.get(f"{_nikita()}/api/snapshot/lite", timeout=3)
+        r = _session.get(f"{_nikita()}/api/snapshot/lite", timeout=3)
         if r.ok:
             d = r.json()
             balance = d.get("balance", 0)
@@ -326,7 +328,7 @@ def compute_health_score() -> dict:
 
     # Nikita alive and trading?
     try:
-        r = requests.get(f"{_nikita()}/health", timeout=3)
+        r = _session.get(f"{_nikita()}/health", timeout=3)
         if r.ok:
             details["nikita"] = "online"
         else:
@@ -338,7 +340,7 @@ def compute_health_score() -> dict:
 
     # Hive alive?
     try:
-        r = requests.get(f"{_hive()}/api/status", timeout=3)
+        r = _session.get(f"{_hive()}/api/status", timeout=3)
         if r.ok:
             d = r.json()
             obs = d.get("observer", {})
@@ -356,7 +358,7 @@ def compute_health_score() -> dict:
 
     # Llama alive + both GPUs?
     try:
-        r = requests.get(f"{_llama()}/status", timeout=3)
+        r = _session.get(f"{_llama()}/status", timeout=3)
         if r.ok:
             d = r.json()
             router = d.get("router", {}).get("instances", {})
@@ -379,7 +381,7 @@ def compute_health_score() -> dict:
 
     # Mechanicus alive?
     try:
-        r = requests.get(f"{_mechanicus()}/health", timeout=3)
+        r = _session.get(f"{_mechanicus()}/health", timeout=3)
         if r.ok:
             details["mechanicus"] = "online"
         else:
