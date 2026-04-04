@@ -612,6 +612,9 @@ def get_sniper_stats() -> dict:
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TIER D — Scalper Intelligence
+# NOTE: The standalone Nikita scalper engine is DISABLED. These tools still show
+# historical data and config but will return empty/stale results until re-enabled.
+# Active scalp-style trading now happens inside The Hive via meme_scalp agents.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_scalper_active_trades() -> dict:
@@ -649,36 +652,44 @@ def get_scalper_scan_stats() -> dict:
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TIER E — Executor Intelligence
+# NOTE: The executor moved from Mechanicus to Nikita inline. All endpoints now
+# point to Nikita at localhost:5000. Mechanicus fallbacks are kept as comments.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_executor_active_trade() -> dict:
     """Get currently active hypothesis engine trade with alignment scores and poll count."""
-    return _get("mechanicus", "/api/executor/active")
+    # Executor is now inline in Nikita
+    return _get("nikita", "/api/executor/active")
 
 
 def get_executor_log(limit: int = 20) -> dict:
     """Get executor decision log: strikes, failures, reasons."""
-    return _get("mechanicus", f"/api/executor/log?limit={limit}")
+    return _get("nikita", f"/api/executor/log?limit={limit}")
 
 
 def get_executor_alignment() -> dict:
     """Get current alignment snapshot: all 7 bar scores for each scanned asset."""
-    return _get("mechanicus", "/api/executor/alignment")
+    return _get("nikita", "/api/executor/alignment")
 
 
 def get_executor_hypotheses() -> dict:
     """Get hypothesis testing data: fingerprints, win rates, sample sizes."""
-    return _get("mechanicus", "/api/executor/hypotheses")
+    return _get("nikita", "/api/executor/hypotheses")
 
 
 def get_executor_llama_context(asset: str) -> dict:
     """Get The Llama's trade context for a specific asset."""
-    return _get("mechanicus", f"/api/executor/llama-context?asset={asset}")
+    return _get("nikita", f"/api/executor/llama-context?asset={asset}")
 
 
 def get_executor_scan_summary() -> dict:
     """Get latest scan summary: scanned, tradeable, passed, rejection breakdown."""
-    dashboard = _get("mechanicus", "/api/dashboard")
+    # Try Nikita inline executor first
+    result = _get("nikita", "/api/executor/scan-summary")
+    if result and "error" not in result:
+        return result
+    # Fallback: check engine-signals or analytics dashboard
+    dashboard = _get("nikita", "/api/analytics/dashboard")
     if dashboard:
         return dashboard.get("executor_scan_summary", {})
     return {}
@@ -1147,6 +1158,123 @@ def write_intelligence_briefing(content: str) -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# HIVE EXTENDED TOOLS — Trait Lab, Agent Deep-Dive, Evolution, Write Tools
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def read_hive_trait_correlations() -> dict:
+    """Read Hive trait correlation analysis — which personality traits help vs hurt performance."""
+    try:
+        r = _http_hive.get(f"{_HIVE_BASE}/api/trait-lab/correlations", timeout=_HIVE_TIMEOUT)
+        return r.json() if r.status_code == 200 else {"error": f"HTTP {r.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def read_hive_trait_sensitivity() -> dict:
+    """Read Hive trait sensitivity analysis — optimal ranges (sweet spots) for each trait."""
+    try:
+        r = _http_hive.get(f"{_HIVE_BASE}/api/trait-lab/sensitivity", timeout=_HIVE_TIMEOUT)
+        return r.json() if r.status_code == 200 else {"error": f"HTTP {r.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def read_hive_trait_combinations() -> dict:
+    """Read Hive trait combination analysis — which trait pairs work well together."""
+    try:
+        r = _http_hive.get(f"{_HIVE_BASE}/api/trait-lab/combinations", timeout=_HIVE_TIMEOUT)
+        return r.json() if r.status_code == 200 else {"error": f"HTTP {r.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def read_hive_active_experiments() -> dict:
+    """Read active Hive trait-lab experiments — what's currently being tested."""
+    try:
+        r = _http_hive.get(f"{_HIVE_BASE}/api/trait-lab/experiments", timeout=_HIVE_TIMEOUT)
+        return r.json() if r.status_code == 200 else {"error": f"HTTP {r.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def read_hive_agent_detail(agent_id: int = 0) -> dict:
+    """Deep-dive a specific Hive agent — full personality traits, genome, Elo, balance, unrealized P&L."""
+    try:
+        r = _http_hive.get(f"{_HIVE_BASE}/api/agents/{agent_id}", timeout=_HIVE_TIMEOUT)
+        return r.json() if r.status_code == 200 else {"error": f"HTTP {r.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def read_hive_agent_trades(agent_id: int = 0, limit: int = 20) -> dict:
+    """Read recent trades for a specific Hive agent — asset, direction, entry/exit, P&L, outcome."""
+    try:
+        r = _http_hive.get(f"{_HIVE_BASE}/api/agents/{agent_id}/trades?per_page={limit}&decision=EXECUTE", timeout=_HIVE_TIMEOUT)
+        return r.json() if r.status_code == 200 else {"error": f"HTTP {r.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def read_hive_open_positions() -> dict:
+    """Read all open positions across The Hive — what agents are currently holding."""
+    try:
+        r = _http_hive.get(f"{_HIVE_BASE}/api/open-assets", timeout=_HIVE_TIMEOUT)
+        return r.json() if r.status_code == 200 else {"error": f"HTTP {r.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def read_hive_evolution_status() -> dict:
+    """Read last evolution cycle results — who was pruned, born, scored. Plus generation breakdown."""
+    try:
+        r = _http_hive.get(f"{_HIVE_BASE}/api/evolution/status", timeout=_HIVE_TIMEOUT)
+        return r.json() if r.status_code == 200 else {"error": f"HTTP {r.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def read_hive_tier_distribution() -> dict:
+    """Read Elo tier distribution — how many LEGEND/ELITE/PROVEN/ROOKIE/FAILING/DEAD agents."""
+    try:
+        r = _http_hive.get(f"{_HIVE_BASE}/api/elo/tiers", timeout=_HIVE_TIMEOUT)
+        return r.json() if r.status_code == 200 else {"error": f"HTTP {r.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def trigger_hive_evolution() -> dict:
+    """WRITE TOOL — Trigger an immediate evolution cycle on The Hive. Use with caution."""
+    try:
+        r = _http_hive.post(f"{_HIVE_BASE}/api/evolution/run", timeout=30)
+        return r.json() if r.status_code == 200 else {"error": f"HTTP {r.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def submit_hive_experiment(trait: str = "", action: str = "scale_down") -> dict:
+    """WRITE TOOL — Submit a trait experiment to The Hive. Actions: scale_down, scale_up, toggle_off, freeze."""
+    if not trait:
+        return {"error": "trait parameter required"}
+    try:
+        r = _http_hive.post(f"{_HIVE_BASE}/api/trait-lab/experiment",
+            json={"trait": trait, "action": action}, timeout=_HIVE_TIMEOUT)
+        return r.json() if r.status_code == 200 else {"error": f"HTTP {r.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def post_hive_culling_advisory(advisory: dict = None) -> dict:
+    """WRITE TOOL — Post a culling advisory to The Hive for the next evolution cycle."""
+    if not advisory:
+        return {"error": "advisory dict required"}
+    try:
+        r = _http_hive.post(f"{_HIVE_BASE}/api/evolution/advisory", json=advisory, timeout=_HIVE_TIMEOUT)
+        return r.json() if r.status_code == 200 else {"error": f"HTTP {r.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # TOOL REGISTRY — maps tool names to functions for the LLM
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1308,6 +1436,22 @@ TOOL_REGISTRY = {
     "resume_engine": resume_engine,
     "inject_enrichment_cache": inject_enrichment_cache,
     "write_intelligence_briefing": write_intelligence_briefing,
+    # HIVE — Trait Lab
+    "read_hive_trait_correlations": read_hive_trait_correlations,
+    "read_hive_trait_sensitivity": read_hive_trait_sensitivity,
+    "read_hive_trait_combinations": read_hive_trait_combinations,
+    "read_hive_active_experiments": read_hive_active_experiments,
+    # HIVE — Agent deep-dive
+    "read_hive_agent_detail": read_hive_agent_detail,
+    "read_hive_agent_trades": read_hive_agent_trades,
+    # HIVE — Positions & Evolution
+    "read_hive_open_positions": read_hive_open_positions,
+    "read_hive_evolution_status": read_hive_evolution_status,
+    "read_hive_tier_distribution": read_hive_tier_distribution,
+    # HIVE — Write Tools
+    "trigger_hive_evolution": trigger_hive_evolution,
+    "submit_hive_experiment": submit_hive_experiment,
+    "post_hive_culling_advisory": post_hive_culling_advisory,
 }
 
 
@@ -1386,13 +1530,23 @@ TOOL_CATEGORIES = {
         "tools": [],
     },
     "HIVE": {
-        "description": "The Hive — 22 AI personality agents, observer mode, hourly reports, consensus",
+        "description": "The Hive — AI personality agents, Elo, evolution, trait-lab experiments, open positions, consensus",
         "tools": [
             "read_hive_status", "read_hive_leaderboard", "read_hive_agents",
             "read_hive_consensus", "read_hive_recent_trades", "broadcast_hive_signal",
             "read_hive_report", "read_hive_observer_status",
             "read_hive_elo_leaderboard", "read_hive_regime_specialists",
             "read_hive_lineage_performance",
+            # Trait-lab
+            "read_hive_trait_correlations", "read_hive_trait_sensitivity",
+            "read_hive_trait_combinations", "read_hive_active_experiments",
+            # Agent deep-dive
+            "read_hive_agent_detail", "read_hive_agent_trades",
+            # Positions & evolution
+            "read_hive_open_positions", "read_hive_evolution_status",
+            "read_hive_tier_distribution",
+            # Write tools
+            "trigger_hive_evolution", "submit_hive_experiment", "post_hive_culling_advisory",
         ],
     },
 }

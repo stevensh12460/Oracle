@@ -12,7 +12,11 @@ import time
 import requests
 
 import oracle_db as db
-from oracle_memory import get_trend, get_all_trends, record_intervention, get_intervention_hit_rate
+from oracle_memory import get_trend, get_all_trends, record_intervention, get_intervention_hit_rate, get_intervention_history
+
+# ── Hive HTTP session (shared across playbook + culling advisory) ─────────────
+_HIVE_BASE = "http://192.168.158.203:5001"
+_http_hive = requests.Session()
 
 # ── Herald delivery (replaces direct Discord webhook POSTs) ──────────────────
 
@@ -47,6 +51,11 @@ PLAYBOOKS = {
             "swing": {"paused": True},
         },
         "signals": ["ORACLE_TRADE_BLOCK"],
+        "hive": {
+            "advisory": "Reduce position sizes, favor patient agents, pause meme engine if WR <30%",
+            "trait_bias": {"patience": "increase", "aggression": "decrease", "risk_tolerance": "decrease"},
+            "meme_engine_pause": True,
+        },
     },
     "SLOW_BLEED": {
         "description": "Bearish + low volatility — reduce exposure, widen stops",
@@ -56,6 +65,11 @@ PLAYBOOKS = {
             "hypothesis": {"min_bars_green": 6},
         },
         "signals": [],
+        "hive": {
+            "advisory": "Slow bleed environment — tighten stops, reduce aggression, prefer major assets over memes",
+            "trait_bias": {"aggression": "decrease", "asset_preference": "major", "patience": "increase"},
+            "meme_engine_pause": False,
+        },
     },
     "BULL_BREAKOUT": {
         "description": "Risk-on + momentum confirmed — aggressive posture",
@@ -66,6 +80,11 @@ PLAYBOOKS = {
             "swing": {"paused": False},
         },
         "signals": [],
+        "hive": {
+            "advisory": "Risk-on confirmed — maximize agent aggression, allow meme engine, favor momentum-sensitive agents",
+            "trait_bias": {"aggression": "increase", "reaction_speed": "increase", "risk_tolerance": "increase"},
+            "meme_engine_pause": False,
+        },
     },
     "CHOP_RANGE": {
         "description": "Neutral + no trend — scalper only, fast in/out",
@@ -75,6 +94,11 @@ PLAYBOOKS = {
             "hypothesis": {"min_bars_green": 5},
         },
         "signals": [],
+        "hive": {
+            "advisory": "Choppy market — favor range-trading agents, reduce momentum bias, protect regime specialists",
+            "trait_bias": {"patience": "increase", "reaction_speed": "decrease"},
+            "meme_engine_pause": False,
+        },
     },
 }
 
@@ -140,13 +164,30 @@ def _activate_playbook(name: str, playbook: dict, ctx: dict):
         print(f"    [ADVISORY] Recommended actions: {actions}")
         # Broadcast playbook recommendation to Hive so agents can incorporate it
         try:
-            requests.post(f"http://192.168.158.203:5001/api/broadcast_signal", json={
+            _http_hive.post(f"{_HIVE_BASE}/api/broadcast_signal", json={
                 "asset": "SYSTEM",
                 "direction": "ADVISORY",
                 "confidence": "high",
                 "trend": name.lower(),
                 "playbook": name,
                 "recommended_actions": actions,
+            }, timeout=5)
+        except Exception:
+            pass
+
+    # ── Hive-specific playbook actions ───────────────────────────────────
+    hive_actions = playbook.get("hive", {})
+    if hive_actions:
+        print(f"    [HIVE ADVISORY] {hive_actions.get('advisory', '')}")
+        try:
+            _http_hive.post(f"{_HIVE_BASE}/api/broadcast_signal", json={
+                "asset": "SYSTEM",
+                "direction": "PLAYBOOK_HIVE",
+                "confidence": "high",
+                "playbook": name,
+                "hive_advisory": hive_actions.get("advisory", ""),
+                "trait_bias": hive_actions.get("trait_bias", {}),
+                "meme_engine_pause": hive_actions.get("meme_engine_pause", False),
             }, timeout=5)
         except Exception:
             pass
@@ -367,3 +408,174 @@ def drive_hive_experiments():
         pass
 
     return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LAYER 3b: CULLING ADVISORY
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_last_advisory_time = 0
+_ADVISORY_INTERVAL = 6600  # 110 minutes (10 min before 2-hour evolution)
+
+
+def build_culling_advisory(memory) -> dict:
+    """Build a structured culling advisory for The Hive's next evolution cycle.
+
+    Analyzes: regime specialists, trait trends, diversity, experiment history,
+    and market context to recommend who to protect, flag, and how to mutate.
+    """
+    advisory = {
+        "timestamp": time.time(),
+        "protected_agents": [],
+        "protection_reasons": {},
+        "flagged_agents": [],
+        "flag_reasons": {},
+        "trait_guidance": {},
+        "regime_forecast": "",
+        "diversity_score": 0.0,
+        "diversity_warning": "",
+        "experiment_insights": {},
+    }
+
+    # 1. Get regime specialists from Hive
+    try:
+        # Get current macro regime
+        macro_trend = memory.get_trend("macro_regime", 4)
+        current_regime = "CHOP"  # default
+        if macro_trend and macro_trend.get("current") is not None:
+            val = macro_trend["current"]
+            current_regime = "STRONG_TREND" if abs(val) > 0.7 else "WEAK_TREND" if abs(val) > 0.3 else "CHOP"
+
+        # Protect regime specialists for current AND likely next regime
+        for regime in [current_regime, "CHOP", "WEAK_TREND"]:
+            try:
+                resp = _http_hive.get(f"{_HIVE_BASE}/api/elo/regime/{regime}", timeout=5)
+                if resp.ok:
+                    specialists = resp.json()
+                    if isinstance(specialists, list):
+                        for agent in specialists[:2]:  # Top 2 per regime
+                            name = agent.get("name", "")
+                            if name and name not in advisory["protected_agents"]:
+                                advisory["protected_agents"].append(name)
+                                advisory["protection_reasons"][name] = f"Top {regime} specialist (regime rating: {agent.get('regime_rating', '?')})"
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # 2. Check diversity — flag clones with identical traits
+    try:
+        resp = _http_hive.get(f"{_HIVE_BASE}/api/elo/leaderboard?limit=100", timeout=8)
+        if resp.ok:
+            agents = resp.json()
+            lineage_counts = {}
+            count = 0
+            for a in agents:
+                lin = a.get("lineage", "unknown")
+                lineage_counts[lin] = lineage_counts.get(lin, 0) + 1
+                count += 1
+
+            # Diversity score: 1.0 = perfectly diverse, 0.0 = all same lineage
+            if count > 0:
+                max_concentration = max(lineage_counts.values()) / count
+                advisory["diversity_score"] = round(1.0 - max_concentration, 2)
+
+                # Flag over-concentrated lineages
+                for lin, cnt in lineage_counts.items():
+                    if cnt > count * 0.3:  # >30% from same lineage
+                        lin_agents = [a for a in agents if a.get("lineage") == lin]
+                        lin_agents.sort(key=lambda x: x.get("elo_rating", 0))
+                        for a in lin_agents[:3]:  # Flag bottom 3 of concentrated lineage
+                            name = a.get("name", "")
+                            if name:
+                                advisory["flagged_agents"].append(name)
+                                advisory["flag_reasons"][name] = f"Lineage {lin} over-concentrated ({cnt}/{count} agents = {cnt/count*100:.0f}%)"
+
+                if advisory["diversity_score"] < 0.5:
+                    advisory["diversity_warning"] = f"Swarm converging — diversity score {advisory['diversity_score']}. Consider protecting unique agents and pruning clones."
+    except Exception:
+        pass
+
+    # 3. Trait guidance from correlations
+    try:
+        resp = _http_hive.get(f"{_HIVE_BASE}/api/trait-lab/correlations", timeout=5)
+        if resp.ok:
+            corrs = resp.json()
+            if isinstance(corrs, dict):
+                for trait, data in corrs.items():
+                    if isinstance(data, dict):
+                        verdict = data.get("verdict", "neutral")
+                        corr_wr = data.get("corr_winrate", 0)
+                        if verdict == "helps" and abs(corr_wr) > 0.15:
+                            advisory["trait_guidance"][f"increase_{trait}"] = f"{trait} correlates with winning (r={corr_wr:.2f})"
+                        elif verdict == "hurts" and abs(corr_wr) > 0.15:
+                            advisory["trait_guidance"][f"reduce_{trait}"] = f"{trait} correlates with losing (r={corr_wr:.2f})"
+    except Exception:
+        pass
+
+    # 4. Experiment insights from intervention history
+    try:
+        interventions = get_intervention_history(limit=50)
+        if interventions:
+            experiment_types = {}
+            for inv in interventions:
+                inv_type = inv.get("intervention_type", "")
+                if "experiment" in inv_type.lower() or "trait" in inv_type.lower():
+                    outcome = inv.get("outcome", "no_change") or "no_change"
+                    if inv_type not in experiment_types:
+                        experiment_types[inv_type] = {"improved": 0, "worsened": 0, "no_change": 0, "total": 0}
+                    experiment_types[inv_type][outcome] = experiment_types[inv_type].get(outcome, 0) + 1
+                    experiment_types[inv_type]["total"] += 1
+
+            for exp_type, counts in experiment_types.items():
+                total = counts["total"]
+                if total > 0:
+                    hit_rate = counts["improved"] / total
+                    advisory["experiment_insights"][exp_type] = (
+                        f"{'improved' if hit_rate > 0.5 else 'mixed' if hit_rate > 0.3 else 'worsened'} "
+                        f"(hit rate {hit_rate*100:.0f}% over {total} experiments)"
+                    )
+    except Exception:
+        pass
+
+    # 5. Regime forecast from MACRO trend
+    try:
+        macro_trend = memory.get_trend("macro_regime", 4)
+        if macro_trend:
+            direction = macro_trend.get("direction", "stable")
+            if direction == "declining":
+                advisory["regime_forecast"] = "Macro trending bearish — favor defensive agents (high patience, low aggression)"
+            elif direction == "improving":
+                advisory["regime_forecast"] = "Macro trending bullish — favor aggressive agents with momentum sensitivity"
+            else:
+                advisory["regime_forecast"] = "Macro stable — current regime specialists should continue performing"
+    except Exception:
+        advisory["regime_forecast"] = "Unable to determine regime trend"
+
+    return advisory
+
+
+def maybe_send_culling_advisory(memory):
+    """Send culling advisory to The Hive 10 minutes before evolution cycle."""
+    global _last_advisory_time
+    now = time.time()
+    if now - _last_advisory_time < _ADVISORY_INTERVAL:
+        return
+    _last_advisory_time = now
+
+    import logging
+    log = logging.getLogger("oracle")
+
+    advisory = build_culling_advisory(memory)
+    try:
+        _http_hive.post(f"{_HIVE_BASE}/api/evolution/advisory", json=advisory, timeout=10)
+        log.info("[ORACLE] Culling advisory sent to Hive")
+        db.add_observation(
+            obs_type="culling_advisory",
+            data=advisory,
+            engine="hive",
+            severity="info",
+            action_taken=f"Sent advisory: {len(advisory['protected_agents'])} protected, {len(advisory['flagged_agents'])} flagged",
+        )
+    except Exception as e:
+        log.warning(f"[ORACLE] Failed to send culling advisory: {e}")

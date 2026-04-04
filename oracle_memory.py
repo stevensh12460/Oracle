@@ -20,8 +20,12 @@ import oracle_db as db
 # ── Metrics we track ─────────────────────────────────────────────────────────
 
 TRACKED_METRICS = [
-    "scalper_wr",           # Scalper win rate
-    "hypothesis_wr",        # Hypothesis engine win rate
+    # NOTE: "scalper_wr" is DEPRECATED as a standalone scalper metric — the Nikita
+    # scalper engine is disabled. Now sourced from Hive meme_scalp engine WR.
+    "scalper_wr",           # Hive meme_scalp agent win rate (was: standalone scalper)
+    # NOTE: "hypothesis_wr" now sourced from Nikita inline executor (/api/executor/stats),
+    # not Mechanicus. The executor moved from Mechanicus to Nikita inline.
+    "hypothesis_wr",        # Inline executor win rate (was: Mechanicus executor)
     "hive_meme_wr",         # Hive meme scalper agents win rate
     "hive_major_wr",        # Hive major/swing agents win rate
     "macro_regime",         # RISK_ON=1, NEUTRAL=0, RISK_OFF=-1
@@ -29,7 +33,12 @@ TRACKED_METRICS = [
     "portfolio_drawdown",   # Drawdown % from peak
     "health_score",         # Cross-system health (0-10)
     "hive_agent_count",     # Active Hive agents
-    "trades_per_hour",      # Total trades across all engines
+    # NOTE: "trades_per_hour" now derived from Hive report trade counts, not scalper.
+    "trades_per_hour",      # Total trades across all engines (from Hive report)
+    # New Hive metrics
+    "hive_diversity_score",     # Trait distribution spread (0=all same, 1=max diversity)
+    "hive_experiment_hit_rate", # % of trait experiments that improved performance
+    "hive_generation",          # Current Hive generation number
 ]
 
 # In-memory rolling buffer (persisted to DB periodically)
@@ -113,31 +122,8 @@ def collect_snapshot():
     """Pull current metrics from all services and record them.
     Called every watch cycle (90s). Lightweight — uses cached/health endpoints."""
 
-    # Scalper win rate
-    try:
-        r = _session.get(f"{_nikita()}/api/scalper/stats", timeout=3)
-        if r.ok:
-            d = r.json()
-            total = d.get("total", 0)
-            wins = d.get("wins", 0)
-            if total > 0:
-                record_metric("scalper_wr", round(wins / total * 100, 1))
-                record_metric("trades_per_hour", total)
-    except Exception:
-        pass
-
-    # Hypothesis win rate (from Mechanicus)
-    try:
-        r = _session.get(f"{_mechanicus()}/api/executor/stats", timeout=3)
-        if r.ok:
-            d = r.json()
-            wr = d.get("win_rate", 0)
-            if wr:
-                record_metric("hypothesis_wr", float(wr))
-    except Exception:
-        pass
-
-    # Hive metrics
+    # scalper_wr — now sourced from Hive meme_scalp engine (standalone scalper disabled)
+    # hypothesis_wr, trades_per_hour, and new Hive metrics all from Hive report
     try:
         r = _session.get(f"{_nikita()}/api/hive/report", timeout=3)
         if r.ok:
@@ -148,9 +134,53 @@ def collect_snapshot():
                 major = ep.get("major_swing", {})
                 if meme.get("win_rate") is not None:
                     record_metric("hive_meme_wr", meme["win_rate"])
+                    # scalper_wr now mirrors meme_scalp WR (standalone scalper is disabled)
+                    record_metric("scalper_wr", meme["win_rate"])
                 if major.get("win_rate") is not None:
                     record_metric("hive_major_wr", major["win_rate"])
                 record_metric("hive_agent_count", d.get("agent_count", 0))
+
+                # trades_per_hour from total trade counts in Hive report
+                total_trades = d.get("total_trades", 0) or sum(
+                    ep.get(eng, {}).get("total_trades", 0) for eng in ep
+                )
+                if total_trades:
+                    record_metric("trades_per_hour", total_trades)
+
+                # New Hive metrics
+                diversity = d.get("diversity_score")
+                if diversity is not None:
+                    record_metric("hive_diversity_score", float(diversity))
+
+                generation = d.get("generation") or d.get("current_generation")
+                if generation is not None:
+                    record_metric("hive_generation", int(generation))
+    except Exception:
+        pass
+
+    # hypothesis_wr — from Nikita inline executor (moved from Mechanicus)
+    try:
+        r = _session.get(f"{_nikita()}/api/executor/stats", timeout=3)
+        if r.ok:
+            d = r.json()
+            wr = d.get("win_rate", 0)
+            if wr:
+                record_metric("hypothesis_wr", float(wr))
+    except Exception:
+        pass
+
+    # hive_experiment_hit_rate — from Hive trait-lab experiments endpoint
+    try:
+        r = _session.get(f"{_hive()}/api/trait-lab/experiments", timeout=3)
+        if r.ok:
+            d = r.json()
+            experiments = d if isinstance(d, list) else d.get("experiments", [])
+            if experiments:
+                completed = [e for e in experiments if e.get("status") == "complete"]
+                improved = [e for e in completed if e.get("result") == "improved"]
+                if completed:
+                    hit_rate = round(len(improved) / len(completed) * 100, 1)
+                    record_metric("hive_experiment_hit_rate", hit_rate)
     except Exception:
         pass
 
@@ -349,6 +379,19 @@ def compute_health_score() -> dict:
                 details["hive_errors"] = obs["error_count"]
             details["hive"] = "online"
             details["hive_agents"] = d.get("active_agents", 0)
+
+            # Hive-specific health checks
+            if obs.get("error_count", 0) > 50:
+                score -= 0.5
+                details["hive_observer"] = f"high error count ({obs['error_count']})"
+
+            if not obs.get("running", False):
+                score -= 1.5
+                details["hive_observer_running"] = "stopped"
+
+            if obs.get("trades_opened", 0) == 0 and obs.get("trades_closed", 0) == 0:
+                score -= 0.3
+                details["hive_throughput"] = "zero trades this session"
         else:
             score -= 1
             details["hive"] = "down"
