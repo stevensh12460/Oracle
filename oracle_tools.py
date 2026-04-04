@@ -1062,80 +1062,63 @@ def get_moralis_status() -> dict:
 # TIER W — Write Tools (autonomous within safe ranges, approval outside)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@write_tool(safe_ranges={"value": {"min": 1.5, "max": 2.8}})
-def set_hypothesis_alignment_total(value: float) -> dict:
-    """Set min_alignment_total for hypothesis engine. Safe range: 1.5-2.8."""
-    return _post("mechanicus", "/api/executor/config", {"min_alignment_total": value})
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEPRECATED ENGINE WRITE TOOLS
+# The Hive is the sole trader. Engines produce analysis data only.
+# These tools are kept for backward compatibility but return deprecation notices.
+# ═══════════════════════════════════════════════════════════════════════════════
 
-@write_tool(safe_ranges={"value": {"min": 4, "max": 6}})
-def set_hypothesis_bars_green(value: int) -> dict:
-    """Set min_bars_green for hypothesis engine. Safe range: 4-6."""
-    return _post("mechanicus", "/api/executor/config", {"min_bars_green": value})
+def set_hypothesis_alignment_total(value: float = 0) -> dict:
+    """DEPRECATED — Hive is sole trader. Hypothesis engine produces data only."""
+    return {"deprecated": True, "reason": "Hive is sole trader. Engines no longer execute trades."}
+
+def set_hypothesis_bars_green(value: int = 0) -> dict:
+    """DEPRECATED — Hive is sole trader. Hypothesis engine produces data only."""
+    return {"deprecated": True, "reason": "Hive is sole trader. Engines no longer execute trades."}
 
 def reset_hypothesis_thresholds() -> dict:
-    """Reset hypothesis engine thresholds to defaults (alignment=2.0, bars=5)."""
-    return _post("mechanicus", "/api/executor/config", {"min_alignment_total": 2.0, "min_bars_green": 5})
+    """DEPRECATED — Hive is sole trader."""
+    return {"deprecated": True, "reason": "Hive is sole trader. Engines no longer execute trades."}
 
-@write_tool(safe_ranges={"value": {"min": 1.0, "max": 4.0}})
-def set_scalper_min_change(value: float) -> dict:
-    """Set min_5m_change for scalper. Safe range: 1.0-4.0%."""
-    return _post("nikita", "/api/scalper/config", {"min_5m_change": value})
+def set_scalper_min_change(value: float = 0) -> dict:
+    """DEPRECATED — Scalper disabled. Hive meme agents handle this."""
+    return {"deprecated": True, "reason": "Scalper disabled. Hive meme_scalp agents handle meme trading."}
 
-@write_tool(safe_ranges={"value": {"min": 1, "max": 5}})
-def set_scalper_max_concurrent(value: int) -> dict:
-    """Set max_concurrent_scalps. Safe range: 1-5."""
-    return _post("nikita", "/api/scalper/config", {"max_concurrent_scalps": value})
+def set_scalper_max_concurrent(value: int = 0) -> dict:
+    """DEPRECATED — Scalper disabled."""
+    return {"deprecated": True, "reason": "Scalper disabled. Hive meme_scalp agents handle meme trading."}
 
 def reset_scalper_thresholds() -> dict:
-    """Reset scalper thresholds to defaults (min_change=2.0, concurrent=2)."""
-    return _post("nikita", "/api/scalper/config", {"min_5m_change": 2.0, "max_concurrent_scalps": 2})
+    """DEPRECATED — Scalper disabled."""
+    return {"deprecated": True, "reason": "Scalper disabled."}
 
-@write_tool(safe_ranges={"value": {"allowed": ["HIGH", "VERY_HIGH"]}})
-def set_swing_min_confidence(value: str) -> dict:
-    """Set minimum confidence for swing engine. Safe values: HIGH or VERY_HIGH only."""
-    return _post("mechanicus", "/api/executor/config", {"swing_min_confidence": value})
+def set_swing_min_confidence(value: str = "") -> dict:
+    """DEPRECATED — Hive is sole trader. Swing engine produces data only."""
+    return {"deprecated": True, "reason": "Hive is sole trader. Engines no longer execute trades."}
 
-@write_tool(safe_ranges={"value": {"min": 15, "max": 60}})
-def set_swing_reeval_interval(value: int) -> dict:
-    """Set swing re-evaluation interval in minutes. Safe range: 15-60."""
-    return _post("mechanicus", "/api/executor/config", {"swing_reeval_interval": value})
+def set_swing_reeval_interval(value: int = 0) -> dict:
+    """DEPRECATED — Hive is sole trader."""
+    return {"deprecated": True, "reason": "Hive is sole trader."}
 
-@write_tool(safe_ranges={"value": {"min": 12, "max": 24}})
-def set_swing_max_hold_hours(value: int) -> dict:
-    """Set swing max hold duration in hours. Safe range: 12-24."""
-    return _post("mechanicus", "/api/executor/config", {"swing_max_hold_hours": value})
+def set_swing_max_hold_hours(value: int = 0) -> dict:
+    """DEPRECATED — Hive is sole trader."""
+    return {"deprecated": True, "reason": "Hive is sole trader."}
 
-@write_tool(safe_ranges={"value": {"min": 0.3, "max": 0.7}})
-def set_swing_sl_tighten_factor(value: float) -> dict:
-    """Set swing SL tighten factor on MACRO flip. Safe range: 0.3-0.7."""
-    return _post("mechanicus", "/api/executor/config", {"swing_sl_tighten_factor": value})
+def set_swing_sl_tighten_factor(value: float = 0) -> dict:
+    """DEPRECATED — Hive is sole trader."""
+    return {"deprecated": True, "reason": "Hive is sole trader."}
 
 def reset_swing_thresholds() -> dict:
-    """Reset all swing engine thresholds to defaults."""
-    return _post("mechanicus", "/api/executor/config", {
-        "swing_min_confidence": "HIGH", "swing_reeval_interval": 30,
-        "swing_max_hold_hours": 24, "swing_sl_tighten_factor": 0.5
-    })
+    """DEPRECATED — Hive is sole trader."""
+    return {"deprecated": True, "reason": "Hive is sole trader."}
 
-@write_tool(safe_ranges={"duration_minutes": {"min": 1, "max": 30}})
-def pause_engine(engine_name: str, duration_minutes: int = 10) -> dict:
-    """Pause an engine for N minutes. Safe range: 1-30 min autonomous, 31+ needs approval."""
-    return _post("nikita", "/api/engine-signals", {
-        "engine": "oracle", "signal_type": "ORACLE_ENGINE_PAUSE",
-        "asset": engine_name, "data": {"duration": duration_minutes, "reason": "oracle_pause"},
-        "ttl_minutes": duration_minutes,
-    })
+def pause_engine(engine_name: str = "", duration_minutes: int = 0) -> dict:
+    """DEPRECATED — Hive is sole trader. Use Hive trait experiments instead."""
+    return {"deprecated": True, "reason": "Hive is sole trader. Use submit_hive_experiment() for Hive control."}
 
-def resume_engine(engine_name: str) -> dict:
-    """Resume a paused engine by clearing its pause signal. Always autonomous."""
-    try:
-        sigs = _http.get(f"{_get_base('nikita')}/api/engine-signals?type=ORACLE_ENGINE_PAUSE", timeout=5).json()
-        for s in sigs:
-            if s.get("asset") == engine_name:
-                _http.delete(f"{_get_base('nikita')}/api/engine-signals/{s['id']}", timeout=5)
-        return {"ok": True, "engine": engine_name, "action": "resumed"}
-    except Exception as e:
-        return {"error": str(e)}
+def resume_engine(engine_name: str = "") -> dict:
+    """DEPRECATED — Hive is sole trader."""
+    return {"deprecated": True, "reason": "Hive is sole trader."}
 
 def inject_enrichment_cache(mode: str = "ORACLE_BRIEFING", payload: dict = None) -> dict:
     """Write to The Llama's enrichment cache. Safe mode: ORACLE_BRIEFING only."""

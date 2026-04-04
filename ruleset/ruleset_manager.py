@@ -105,12 +105,8 @@ def run_watch_cycle():
             _watch_state["last_briefing"] = now
             actions.append("briefing_written")
 
-        # ── Hook 3: Scalper Config Tuning (every 5 min) ──
-        if now - _watch_state["last_scalper_tune"] > 300:
-            tuned = _tune_scalper()
-            _watch_state["last_scalper_tune"] = now
-            if tuned:
-                actions.append(f"scalper_tuned:{tuned}")
+        # ── Hook 3: Scalper Config Tuning — DISABLED (Hive is sole trader) ──
+        # _tune_scalper() removed — scalper disabled, Hive meme agents handle this
 
         # ── Hook 6: Enrichment Cache Write (every 30 min) ──
         if now - _watch_state["last_cache_write"] > 1800:
@@ -118,12 +114,8 @@ def run_watch_cycle():
             _watch_state["last_cache_write"] = now
             actions.append("cache_written")
 
-        # ── Hook 7: Hypothesis Threshold Tuning (every 5 min) ──
-        if now - _watch_state["last_hypothesis_tune"] > 300:
-            tuned = _tune_hypothesis()
-            _watch_state["last_hypothesis_tune"] = now
-            if tuned:
-                actions.append(f"hypothesis_tuned:{tuned}")
+        # ── Hook 7: Hypothesis Tuning — DISABLED (Hive is sole trader) ──
+        # _tune_hypothesis() removed — engines produce data only, don't trade
 
         # ── Layer 4: Playbook evaluation (every cycle) ──
         try:
@@ -207,13 +199,10 @@ def run_watch_cycle():
             except Exception:
                 pass
 
-        # ── Auto Ruleset Management (every 4 hours, or 5 min after startup) ──
-        ruleset_interval = 300 if _watch_state["last_ruleset_check"] == 0 else 14400
-        if now - _watch_state["last_ruleset_check"] > ruleset_interval:
-            generated = _auto_manage_rulesets()
-            _watch_state["last_ruleset_check"] = now
-            if generated:
-                actions.append(f"rulesets:{generated}")
+        # ── Auto Ruleset Management — DISABLED (Hive is sole trader) ──
+        # Rulesets for scalper/hypothesis/swing/sniper no longer needed.
+        # Engines produce analysis data only. The Hive makes all trade decisions.
+        # ORACLE's value is in culling advisories + trait experiments, not engine rules.
 
         # ── Persist memory to DB (every 10 min) ──
         if now - _watch_state.get("last_memory_persist", 0) > 600:
